@@ -1,0 +1,3 @@
+owner,repo_name,repo,stars,html_url,total_closed_prs,pr_number,state,num_files,additions,deletions,analysis_time_hours,description_length,participants_count,comments_count,reviews_count
+freeCodeCamp,freeCodeCamp,freeCodeCamp/freeCodeCamp,428895,https://github.com/freeCodeCamp/freeCodeCamp,40888,62359,merged,1,1,1,2.3091666666666666,747,3,0,2
+freeCodeCamp,freeCodeCamp,freeCodeCamp/freeCodeCamp,428895,https://github.com/freeCodeCamp/freeCodeCamp,40888,62357,merged,1,2,0,1.0994444444444444,641,3,0,3
