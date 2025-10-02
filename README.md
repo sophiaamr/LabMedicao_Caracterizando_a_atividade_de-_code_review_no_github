@@ -36,11 +36,12 @@ As **Hipóteses Informais** foram elaboradas a partir das RQs, estabelecendo exp
 |------|-----------|
 | IH01 | PR's maiores tendem a receber feedbacks mais criticos|
 | IH02 | Quanto mais tempo de revisão, mais crítico será o feedback e menos chance de ser aprovado de priemeira. Quanto menos tempo, mais rápido é a aprovação. |
-| IH03 | |
-| IH04 | |
+| IH03 | PR's com descrições mais detalhadas tem mais chance aprovações|
+| IH04 | Desenvolvedores com mais experiencia tem mais chance dos PR's serem aceitos |
 | IH05 | Quanto maior o PR , maior o número de revisões/rodadas necessárias até a aprovação. |
 | IH06 | PRs com maior tempo de análise costumam exigir mais ciclos de revisão antes da aprovação. |
-| IH07 |  |
+| IH07 | PR's com descrições mais detalhadas precisam de menos revisões |
+| IH08 | PR's com mais discussões mais precisam de menos revisões |
 
 ---
 
