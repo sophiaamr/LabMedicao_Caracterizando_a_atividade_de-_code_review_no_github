@@ -10,8 +10,7 @@
 ---
 
 ## 2. Introdução
-O laboratório tem como objetivo analisar a maturidade e o nível de atividade de sistemas populares hospedados em repositórios públicos.  
-Espera-se compreender padrões de desenvolvimento, adoção de linguagens e engajamento da comunidade em projetos open-source.
+
 
 ### 2.1. Questões de Pesquisa (Research Questions – RQs)
 As **Questões de Pesquisa** foram definidas para guiar a investigação e estruturar a análise dos dados coletados:
@@ -35,13 +34,13 @@ As **Hipóteses Informais** foram elaboradas a partir das RQs, estabelecendo exp
 
 | IH   | Descrição |
 |------|-----------|
-| IH01 | Sistemas populares recebem mais contribuições externas e lançam releases com maior frequência, refletindo um processo de desenvolvimento ativo. |
-| IH02 | Mais de 50% dos repositórios populares são mantidos há mais de 5 anos, indicando maturidade do projeto. |
-| IH03 | Espera-se que mais de 50% dos repositórios populares tenham pelo menos 70% das issues fechadas, demonstrando boa gestão de problemas. |
-| IH04 | Repositórios populares tendem a ser escritos nas linguagens mais utilizadas (ex.: JavaScript, Python, Java), representando a adoção de linguagens consolidadas. |
-| IH05 | Mais de 50% dos repositórios populares recebem atualizações nos últimos 3 meses, refletindo atividade contínua da comunidade. |
-| IH06 | Projetos populares com maior número de forks tendem a ter mais pull requests aceitas, indicando engajamento externo significativo. |
-| IH07 | Repositórios populares com grande número de stars podem apresentar Big Numbers em métricas como número de commits, branches e releases, destacando sua relevância na comunidade open-source. |
+| IH01 | PR's maiores tendem a receber feedbacks mais criticos|
+| IH02 | Quanto mais tempo de revisão, mais crítico será o feedback e menos chance de ser aprovado de priemeira. Quanto menos tempo, mais rápido é a aprovação. |
+| IH03 | |
+| IH04 | |
+| IH05 | Quanto maior o PR , maior o número de revisões/rodadas necessárias até a aprovação. |
+| IH06 | PRs com maior tempo de análise costumam exigir mais ciclos de revisão antes da aprovação. |
+| IH07 |  |
 
 ---
 
