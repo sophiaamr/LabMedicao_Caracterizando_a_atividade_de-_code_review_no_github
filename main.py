@@ -113,13 +113,51 @@ def get_top_repositories(limit=200):
     return repos[:limit]
 
 def get_closed_prs_count(owner, repo):
-    q = f"repo:{owner}/{repo} is:pr is:closed"
-    url = f"{BASE_URL}/search/issues"
-    params = {"q": q, "per_page": 1}
-    data = _safe_get_json(url, params=params)
-    if not data:
-        return 0
-    return int(data.get("total_count", 0))
+    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls"
+    params = {"state": "closed", "per_page": 100, "page": 1}
+    for attempt in range(3):
+        try:
+            session = _get_session()
+            r = session.get(url, params=params, timeout=TIMEOUT)
+            if r.status_code == 403 and r.headers.get("X-RateLimit-Remaining") == "0":
+                _rotate_token_on_session()
+                reset = int(r.headers.get("X-RateLimit-Reset", "0") or 0)
+                wait = max(1, reset - int(time.time())) + 2
+                time.sleep(min(wait, 60))
+                continue
+            if not r.ok:
+                if attempt == 2:
+                    print(f"[ERROR] {owner}/{repo}: HTTP {r.status_code}")
+                    return 0
+                time.sleep(2 ** attempt)
+                continue
+            link_header = r.headers.get("Link", "")
+            if "rel=\"last\"" in link_header:
+                import re
+                match = re.search(r'[?&]page=(\d+)[^>]*>;\s*rel="last"', link_header)
+                if match:
+                    last_page = int(match.group(1))
+                    params_last = params.copy()
+                    params_last["page"] = last_page
+                    r_last = session.get(url, params=params_last, timeout=TIMEOUT)
+                    if r_last.ok:
+                        last_data = r_last.json()
+                        items_last_page = len(last_data) if isinstance(last_data, list) else 0
+                        total = (last_page - 1) * 100 + items_last_page
+                        print(f"[COUNT] {owner}/{repo} -> {total} PRs")
+                        return total
+            data = r.json()
+            if isinstance(data, list):
+                count = len(data)
+                print(f"[COUNT] {owner}/{repo} -> {count} PRs (página única)")
+                return count
+            return 0
+        except Exception as e:
+            if attempt == 2:
+                print(f"[ERROR] {owner}/{repo}: {e}")
+                return 0
+            time.sleep(2 ** attempt)
+    return 0
 
 def _parse_dt(iso_str):
     return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
@@ -266,8 +304,8 @@ if __name__ == "__main__":
     start_ts = datetime.now()
     print(f"{start_ts.isoformat()} | cwd={os.getcwd()}", flush=True)
     TARGET = 200
-    ELIGIBILITY_WORKERS = int(os.getenv("ELIGIBILITY_WORKERS", "8"))
-    PR_WORKERS = int(os.getenv("PR_WORKERS", "3"))
+    ELIGIBILITY_WORKERS = int(os.getenv("ELIGIBILITY_WORKERS", "2"))
+    PR_WORKERS = int(os.getenv("PR_WORKERS", "2"))
     eligible = []
     repo_meta = {}
     print("Buscando repositórios", flush=True)
