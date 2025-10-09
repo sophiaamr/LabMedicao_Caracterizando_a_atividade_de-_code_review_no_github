@@ -86,6 +86,10 @@ A hipotese foi parcialmente refutada, pois os dados de indicam correlação posi
 #### RQ2 - 
 
 <p align="center">
+  <img src="rq02.PNG" width="500" alt="Descrição">
+</p>
+
+<p align="center">
   <img src="GraficoRQ2.jpeg" width="480" alt="Descrição">
 </p>
 
