@@ -154,8 +154,11 @@ Discussão: A hipótese não foi confirmada. Esperava-se que descrições mais l
 Os dados do gráfico mostram que a maioria dos Pull Requests se concentra entre 1 e 10 participantes e entre 1 e 10 revisões. À medida que o número de participantes aumenta, observa-se também um aumento proporcional no número de revisões realizadas. A correlação de Spearman (ρ = 0.662, p < 0.00001) indica uma relação positiva forte entre as variáveis.
 
 Discussão: A hipótese não foi confirmada. Esperava-se que PRs com mais discussões precisassem de menos revisões, porém os dados mostram o contrário: quanto maior o número de participantes, maior também o número de revisões realizadas. Isso indica que a presença de mais colaboradores tende a gerar um processo de revisão mais extenso e detalhado, com mais rodadas de feedback até o consenso final.
+
 ---
 
 ## 7. Conclusão
+ 
   A análise mostrou que fatores como o tamanho, o tempo e a descrição dos PRs têm pouca influência direta no feedback e na quantidade de revisões. As correlações foram fracas, o que indica que esses elementos não definem, sozinhos, a intensidade do processo de revisão. Por outro lado, as interações entre os colaboradores tiveram uma relação forte com o número de revisões e comentários, mostrando que o envolvimento do time é o principal fator para revisões mais completas e produtivas. No fim, o code review se destaca como uma prática colaborativa, onde a comunicação e o trabalho conjunto entre os desenvolvedores fazem a maior diferença na qualidade do resultado.
+
 ---
