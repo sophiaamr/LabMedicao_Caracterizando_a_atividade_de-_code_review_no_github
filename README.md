@@ -68,28 +68,45 @@ A coleta foi automatizada com scripts em Python, utilizando ThreadPoolExecutor p
 
 ## 6. Resultados & Discussões
 
-####RQ1 - 
+#### RQ1 - 
+
+<p align="center">
+  <img src="GraficoRQ1.jpeg" width="480" alt="Descrição">
+</p>
+
 
 O tamanho por si só é um preditor fraco de feedback; alguns PRs grandes recebem muita atenção, mas a maioria (pequenos ou grandes) recebe pouco. Em termos práticos, preferir PRs menores e focados (ou quebrar PRs muito amplos) tende a favorecer revisões mais efetivas e distribuídas.
 
 A hipotese foi parcialmente refutada, pois os dados de indicam correlação positiva fraca entre tamanho do PR e feedback total: PRs maiores têm maior chance de gerar discussões mais extensas, porém a maioria (inclusive muitos PRs grandes) recebe pouco feedback.
 
-####RQ2 - 
+#### RQ2 - 
+
+<p align="center">
+  <img src="GraficoRQ2.jpeg" width="480" alt="Descrição">
+</p>
 
 Neste gráfico, vemos que o engajamento com PRs segue uma curva em U invertido. O pico de feedback ocorre quando a análise leva de 1 a 7 dias: é quando temos mais comentários e mais participantes. PRs muito rápidos tendem a receber menos discussão, possivelmente por serem triviais, e PRs que se arrastam por mais de um mês perdem tração
 
 Disussão: PRs que são resolvidos muito rapidamente (em menos de 1 dia) tendem a ser mudanças simples que genuinamente não requerem discussão extensiva. No entanto, é importante que as equipes verifiquem se não estão negligenciando revisões necessárias em favor da velocidade. Por outro lado, PRs que ultrapassam 1 mês de análise entram em uma zona crítica onde o feedback praticamente estagna, caindo para níveis inferiores aos dos PRs triviais
 
-####RQ3 - 
+#### RQ3 - 
 
-####RQ4 - 
+#### RQ4 - 
 
-####RQ5 - 
+#### RQ5 - 
+
+<p align="center">
+  <img src="GraficoRQ6.jpeg" width="500" alt="Descrição">
+</p>
 
 O gráfico mostra que o conjunto é fortemente concentrado em PRs “Muito Pequenos” (≈45%), seguidos de Pequenos (≈24%); Médios e Grandes somam ~16% cada. Isso significa que, em termos de volume bruto de revisões, os menores inevitavelmente dominam o total simplesmente porque são muito mais numerosos.
 A hipotese é refutada, pois há apenas risco ligeiramente maior de discussões longas em PRs grandes, não um crescimento consistente de revisões conforme o tamanho aumenta.
 
-####RQ6 - 
+#### RQ6 - 
+
+<p align="center">
+  <img src="RQ5Grafico.jpeg" width="600" alt="Descrição">
+</p>
 
 Mais tempo não implica mais revisões. O volume de revisões tende a ser maior quando o PR é analisado entre 1 dia e 1 mês (sobretudo 1–7 dias), enquanto PRs muito rápidos e muito lentos recebem menos ciclos de revisão.
 Ou seja, hipotese foi refutada
