@@ -52,6 +52,10 @@ A coleta foi automatizada com scripts em Python, utilizando ThreadPoolExecutor p
 
 ---
 ## 4. Dificuldades
+
+Dificuldades e desafios estiveram presentes em todas as etapas do trabalho. A coleta de dados foi especialmente desafiadora: foi preciso iterar diversas vezes até definir uma estratégia de paralelização das requisições que não ultrapassasse o rate limit da API. Mesmo reduzindo o número de PRs analisados, a geração do dataset demandou mais de 48 horas de execução.
+Na análise dos dados, a complexidade também foi alta. Enfrentei dificuldades para selecionar as abordagens estatísticas mais adequadas e para implementar os procedimentos analíticos, ainda que a automação de gráficos tenha ajudado na exploração inicial.
+
 ---
 
 ### 5 Métricas
@@ -111,9 +115,9 @@ A hipotese é refutada, pois há apenas risco ligeiramente maior de discussões 
 Mais tempo não implica mais revisões. O volume de revisões tende a ser maior quando o PR é analisado entre 1 dia e 1 mês (sobretudo 1–7 dias), enquanto PRs muito rápidos e muito lentos recebem menos ciclos de revisão.
 Ou seja, hipotese foi refutada
 
-####RQ7 - 
+#### RQ7 - 
 
-####RQ8 - 
+#### RQ8 - 
 
 
 
