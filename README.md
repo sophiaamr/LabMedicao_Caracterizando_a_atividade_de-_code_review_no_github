@@ -96,7 +96,7 @@ Disussão: PRs que são resolvidos muito rapidamente (em menos de 1 dia) tendem 
 #### RQ5 - 
 
 <p align="center">
-  <img src="GraficoRQ6.jpeg" width="500" alt="Descrição">
+  <img src="rq05.PNG" width="500" alt="Descrição">
 </p>
 
 O gráfico mostra que o conjunto é fortemente concentrado em PRs “Muito Pequenos” (≈45%), seguidos de Pequenos (≈24%); Médios e Grandes somam ~16% cada. Isso significa que, em termos de volume bruto de revisões, os menores inevitavelmente dominam o total simplesmente porque são muito mais numerosos.
@@ -105,7 +105,7 @@ A hipotese é refutada, pois há apenas risco ligeiramente maior de discussões 
 #### RQ6 - 
 
 <p align="center">
-  <img src="RQ5Grafico.jpeg" width="600" alt="Descrição">
+  <img src="GraficoRQ6.jpeg" width="600" alt="Descrição">
 </p>
 
 Mais tempo não implica mais revisões. O volume de revisões tende a ser maior quando o PR é analisado entre 1 dia e 1 mês (sobretudo 1–7 dias), enquanto PRs muito rápidos e muito lentos recebem menos ciclos de revisão.
