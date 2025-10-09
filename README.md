@@ -32,7 +32,7 @@ Este trabalho teve como objetivo caracterizar a atividade de code review em repo
 | IH   | Descrição |
 |------|-----------|
 | IH01 | PR's maiores tendem a receber feedbacks mais criticos|
-| IH02 | Quanto mais tempo de revisão, mais crítico será o feedback e menos chance de ser aprovado de priemeira. Quanto menos tempo, mais rápido é a aprovação. |
+| IH02 | Quanto mais tempo de revisão, mais crítico será o feedback e menos chance de ser aprovado de primeira. Quanto menos tempo, mais rápido é a aprovação. |
 | IH03 | PR's com descrições mais detalhadas tem mais chance aprovações|
 | IH04 | Desenvolvedores com mais experiencia tem mais chance dos PR's serem aceitos |
 | IH05 | Quanto maior o PR , maior o número de revisões/rodadas necessárias até a aprovação. |
@@ -66,42 +66,40 @@ A coleta foi automatizada com scripts em Python, utilizando ThreadPoolExecutor p
 
 ---
 
-## 6. Resultados
+## 6. Resultados & Discussões
 
-Apresente os resultados obtidos, com tabelas e gráficos.
+####RQ1 - 
 
----
+O tamanho por si só é um preditor fraco de feedback; alguns PRs grandes recebem muita atenção, mas a maioria (pequenos ou grandes) recebe pouco. Em termos práticos, preferir PRs menores e focados (ou quebrar PRs muito amplos) tende a favorecer revisões mais efetivas e distribuídas.
 
-### 6.1 Gráficos
+A hipotese foi parcialmente refutada, pois os dados de indicam correlação positiva fraca entre tamanho do PR e feedback total: PRs maiores têm maior chance de gerar discussões mais extensas, porém a maioria (inclusive muitos PRs grandes) recebe pouco feedback.
 
-Para criar visualizações das métricas, recomenda-se utilizar como referência o projeto **Seaborn Samples**:  
-- 🔗 Repositório: [Projeto Seaborn Samples](https://github.com/joaopauloaramuni/laboratorio-de-experimentacao-de-software/tree/main/PROJETOS/Projeto%20Seaborn%20Samples)
+####RQ2 - 
 
-- **📊 Histograma**: `grafico_histograma.png` → distribuição de idade, PRs aceitas ou estrelas.  
-- **📈 Boxplot**: `grafico_boxplot.png` → dispersão de métricas como forks, issues fechadas ou LOC.  
-- **📊 Gráfico de Barras**: `grafico_barras.png` → comparação de métricas entre linguagens.  
-- **🥧 Gráfico de Pizza**: `grafico_pizza.png` → percentual de repositórios por linguagem.  
-- **📈 Gráfico de Linha**: `grafico_linha.png` → evolução de releases ou PRs ao longo do tempo.  
-- **🔹 Scatterplot / Dispersão**: `grafico_dispersao.png` → relação entre estrelas e forks.  
-- **🌡 Heatmap**: `grafico_heatmap.png` → correlação entre métricas (idade, PRs, stars, forks, issues).  
-- **🔗 Pairplot**: `grafico_pairplot.png` → análise de múltiplas métricas simultaneamente.  
-- **🎻 Violin Plot**: `grafico_violin.png` → distribuição detalhada de métricas por subgrupo.  
-- **📊 Barras Empilhadas**: `grafico_barras_empilhadas.png` → comparação de categorias dentro de métricas.
+Neste gráfico, vemos que o engajamento com PRs segue uma curva em U invertido. O pico de feedback ocorre quando a análise leva de 1 a 7 dias: é quando temos mais comentários e mais participantes. PRs muito rápidos tendem a receber menos discussão, possivelmente por serem triviais, e PRs que se arrastam por mais de um mês perdem tração
 
-> 💡 Dica: combine tabelas e gráficos para facilitar a interpretação e evidenciar padrões nos dados.
+Disussão: PRs que são resolvidos muito rapidamente (em menos de 1 dia) tendem a ser mudanças simples que genuinamente não requerem discussão extensiva. No entanto, é importante que as equipes verifiquem se não estão negligenciando revisões necessárias em favor da velocidade. Por outro lado, PRs que ultrapassam 1 mês de análise entram em uma zona crítica onde o feedback praticamente estagna, caindo para níveis inferiores aos dos PRs triviais
 
----
+####RQ3 - 
 
-### 6.1 Discussão dos resultados
+####RQ4 - 
 
-Nesta seção, compare os resultados obtidos com as hipóteses informais levantadas pelo grupo no início do experimento.
+####RQ5 - 
 
-- **✅ Confirmação ou refutação das hipóteses**: identifique quais hipóteses foram confirmadas pelos dados e quais foram refutadas.  
-- **❌ Explicações para resultados divergentes**: caso algum resultado seja diferente do esperado, tente levantar possíveis causas ou fatores que possam ter influenciado.  
-- **🔍 Padrões e insights interessantes**: destaque tendências ou comportamentos relevantes observados nos dados que não haviam sido previstos nas hipóteses.  
-- **📊 Comparação por subgrupos (opcional)**: se houver segmentação dos dados (ex.: por linguagem de programação, tamanho do repositório), discuta como os resultados se comportam em cada grupo.  
+O gráfico mostra que o conjunto é fortemente concentrado em PRs “Muito Pequenos” (≈45%), seguidos de Pequenos (≈24%); Médios e Grandes somam ~16% cada. Isso significa que, em termos de volume bruto de revisões, os menores inevitavelmente dominam o total simplesmente porque são muito mais numerosos.
+A hipotese é refutada, pois há apenas risco ligeiramente maior de discussões longas em PRs grandes, não um crescimento consistente de revisões conforme o tamanho aumenta.
 
-> Relacione sempre os pontos observados com as hipóteses informais definidas na introdução, fortalecendo a análise crítica do experimento.
+####RQ6 - 
+
+Mais tempo não implica mais revisões. O volume de revisões tende a ser maior quando o PR é analisado entre 1 dia e 1 mês (sobretudo 1–7 dias), enquanto PRs muito rápidos e muito lentos recebem menos ciclos de revisão.
+Ou seja, hipotese foi refutada
+
+####RQ7 - 
+
+####RQ8 - 
+
+
+
 
 ---
 
