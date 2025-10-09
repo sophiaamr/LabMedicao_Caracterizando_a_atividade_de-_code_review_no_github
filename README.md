@@ -33,12 +33,12 @@ Este trabalho teve como objetivo caracterizar a atividade de code review em repo
 |------|-----------|
 | IH01 | PR's maiores tendem a receber feedbacks mais criticos|
 | IH02 | Quanto mais tempo de revisão, mais crítico será o feedback e menos chance de ser aprovado de primeira. Quanto menos tempo, mais rápido é a aprovação. |
-| IH03 | PR's com descrições mais detalhadas tem mais chance aprovações|
-| IH04 | Desenvolvedores com mais experiencia tem mais chance dos PR's serem aceitos |
+| IH03 | PRs com descrições mais detalhadas e completas tenderiam a gerar menos comentários de revisão |
+| IH04 | PRs que envolvem mais interações entre os colaboradores tendem a gerar revisões mais detalhadas e com maior volume de feedbacks |
 | IH05 | Quanto maior o PR , maior o número de revisões/rodadas necessárias até a aprovação. |
 | IH06 | PRs com maior tempo de análise costumam exigir mais ciclos de revisão antes da aprovação. |
 | IH07 | PR's com descrições mais detalhadas precisam de menos revisões |
-| IH08 | PR's com mais discussões mais precisam de menos revisões |
+| IH08 | PR's com mais discussões precisam de menos revisões |
 
 ---
 
@@ -99,7 +99,23 @@ Disussão: PRs que são resolvidos muito rapidamente (em menos de 1 dia) tendem 
 
 #### RQ3 - 
 
+<p align="center">
+  <img src="/assets/rq3.png" width="480" alt="Descrição">
+</p>
+
+  Os dados do gráfico mostram que a maioria dos Pull Requests possui descrições curtas, geralmente com menos de 5.000 caracteres, e poucos comentários de revisão, concentrando-se entre 0 e 3. À medida que o tamanho da descrição aumenta, o número de comentários permanece baixo, com poucos casos isolados de PRs mais extensos. A correlação de Spearman (ρ = 0.167, p < 0.00001) indica uma relação positiva muito fraca entre as variáveis.
+
+  Discussão: A hipótese não foi confirmada. Embora descrições mais longas pareçam, visualmente, associar-se a menos comentários, o resultado estatístico indica uma correlação fraca e positiva (ρ = 0,167). Isso ocorre porque a maior parte dos PRs possui descrições curtas, nas quais há grande variação no número de comentários, influenciando o resultado global. Assim, conclui-se que o tamanho da descrição tem pouca influência prática no volume de feedbacks durante a revisão.
+
 #### RQ4 - 
+
+<p align="center">
+  <img src="/assets/rq4.png" width="480" alt="Descrição">
+</p>
+
+Os dados do gráfico mostram que a maioria dos Pull Requests possui baixa quantidade de interações, com poucos participantes e comentários concentrados nas faixas iniciais. À medida que o número de participantes aumenta, observa-se um crescimento proporcional no número de comentários de revisão. A correlação de Spearman (ρ = 0.662, p < 0.00001) indica uma relação positiva forte entre as variáveis.
+
+Discussão: A hipótese foi confirmada. Observou-se que PRs com mais interações entre os colaboradores apresentam maior volume de comentários, indicando revisões mais participativas e detalhadas. Isso sugere que quanto maior o envolvimento coletivo no processo de revisão, mais extensas tendem a ser as discussões e os feedbacks gerados até a aprovação final.
 
 #### RQ5 - 
 
@@ -121,17 +137,25 @@ Ou seja, hipotese foi refutada
 
 #### RQ7 - 
 
+<p align="center">
+  <img src="/assets/rq7.png" width="480" alt="Descrição">
+</p>
+
+Os dados do gráfico mostram que a maioria dos Pull Requests possui descrições curtas, com menos de 5.000 caracteres, e baixo número de revisões, concentrando-se entre 0 e 3 comentários. Mesmo com o aumento do tamanho das descrições, o número de revisões tende a permanecer baixo, sem variação significativa. A correlação de Spearman (ρ = 0.167, p < 0.00001) indica uma relação positiva muito fraca entre o tamanho da descrição e o número de revisões realizadas.
+
+Discussão: A hipótese não foi confirmada. Esperava-se que descrições mais longas resultassem em menos revisões, por facilitarem o entendimento das mudanças propostas, mas os dados mostram que o tamanho da descrição tem pouca influência no número de revisões realizadas. A correlação fraca indica que fatores como a complexidade do código ou o tipo de alteração parecem ter maior impacto na quantidade de feedbacks durante o processo de revisão.
+
 #### RQ8 - 
 
+<p align="center">
+  <img src="/assets/rq8.png" width="480" alt="Descrição">
+</p>
 
+Os dados do gráfico mostram que a maioria dos Pull Requests se concentra entre 1 e 10 participantes e entre 1 e 10 revisões. À medida que o número de participantes aumenta, observa-se também um aumento proporcional no número de revisões realizadas. A correlação de Spearman (ρ = 0.662, p < 0.00001) indica uma relação positiva forte entre as variáveis.
 
-
+Discussão: A hipótese não foi confirmada. Esperava-se que PRs com mais discussões precisassem de menos revisões, porém os dados mostram o contrário: quanto maior o número de participantes, maior também o número de revisões realizadas. Isso indica que a presença de mais colaboradores tende a gerar um processo de revisão mais extenso e detalhado, com mais rodadas de feedback até o consenso final.
 ---
 
 ## 7. Conclusão
-
----
-
-## 6. Referências
-
+  A análise mostrou que fatores como o tamanho, o tempo e a descrição dos PRs têm pouca influência direta no feedback e na quantidade de revisões. As correlações foram fracas, o que indica que esses elementos não definem, sozinhos, a intensidade do processo de revisão. Por outro lado, as interações entre os colaboradores tiveram uma relação forte com o número de revisões e comentários, mostrando que o envolvimento do time é o principal fator para revisões mais completas e produtivas. No fim, o code review se destaca como uma prática colaborativa, onde a comunicação e o trabalho conjunto entre os desenvolvedores fazem a maior diferença na qualidade do resultado.
 ---

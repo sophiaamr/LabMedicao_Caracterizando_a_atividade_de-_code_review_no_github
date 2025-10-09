@@ -1,378 +1,458 @@
 import os
 import time
+import json
+import math
+import hashlib
 import random
+import sqlite3
+import threading
+from contextlib import contextmanager
+from datetime import datetime, timezone
+
 import requests
 import pandas as pd
-from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import local, Lock
 
-OUTPUT_FILENAME = "dataset.csv"
+OUTPUT_FILENAME = os.getenv("OUTPUT_FILENAME", "dataset.csv")
 BASE_URL = "https://api.github.com"
 
-def _load_tokens():
-    env_multi = os.getenv("GITHUB_TOKENS", "").strip()
-    if env_multi:
-        tokens = [t.strip() for t in env_multi.split(",") if t.strip()]
-        if tokens:
-            return tokens
-    single = os.getenv("GITHUB_TOKEN", "").strip()
-    return [single] if single else []
 
-TOKENS = _load_tokens()
+TOKENS_ENV = os.getenv("GITHUB_TOKENS", "").strip()
+SINGLE_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+TOKENS = [t.strip() for t in TOKENS_ENV.split(",") if t.strip()] or ([SINGLE_TOKEN] if SINGLE_TOKEN else [])
+TOKENS = [
+    ]
 if not TOKENS:
-    raise RuntimeError("Defina GITHUB_TOKENS (vírgula) ou GITHUB_TOKEN")
+    raise RuntimeError(
+        "Nenhum token encontrado. Defina GITHUB_TOKENS (comma-separated) ou GITHUB_TOKEN no ambiente."
+    )
+
+DEFAULT_HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "oss-research/1.1"
+}
 
 TIMEOUT = (10, 45)
 MAX_DEEP_PRS_PER_REPO = int(os.getenv("MAX_DEEP_PRS_PER_REPO", "3000"))
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "16"))
+
+CACHE_DB_PATH = os.getenv("CACHE_DB_PATH", ".cache/github_api_cache.sqlite")
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "86400"))
+os.makedirs(os.path.dirname(CACHE_DB_PATH), exist_ok=True)
+
+def _now_ts() -> int:
+    return int(time.time())
+
+def _iso_to_dt(iso_str: str) -> datetime:
+    return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+
+def _params_fingerprint(params: dict | None) -> str:
+    if not params:
+        return "noparams"
+    s = json.dumps(params, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+def _cache_key(url: str, params: dict | None) -> str:
+    return hashlib.sha256(f"{url}|{_params_fingerprint(params)}".encode("utf-8")).hexdigest()
+
+class SQLiteCache:
+    def __init__(self, path: str, ttl_seconds: int):
+        self.path = path
+        self.ttl = ttl_seconds
+        self._lock = threading.RLock()
+        self._ensure_schema()
+
+    def _ensure_schema(self):
+        with self._conn() as con:
+            con.execute("""
+              CREATE TABLE IF NOT EXISTS cache (
+                cache_key TEXT PRIMARY KEY,
+                url TEXT NOT NULL,
+                params_fpr TEXT NOT NULL,
+                status_code INTEGER NOT NULL,
+                response_json TEXT,
+                etag TEXT,
+                last_modified TEXT,
+                created_at INTEGER NOT NULL
+              )
+            """)
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.execute("PRAGMA synchronous=NORMAL;")
+
+    @contextmanager
+    def _conn(self):
+        con = sqlite3.connect(self.path, timeout=30)
+        try:
+            yield con
+        finally:
+            con.close()
+
+    def get(self, url: str, params: dict | None):
+        key = _cache_key(url, params)
+        with self._lock, self._conn() as con:
+            cur = con.execute("SELECT status_code, response_json, etag, last_modified, created_at FROM cache WHERE cache_key=?",
+                              (key,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            status_code, response_json, etag, last_modified, created_at = row
+
+            if (_now_ts() - int(created_at)) > self.ttl:
+                return {"stale": True, "etag": etag, "last_modified": last_modified, "json": json.loads(response_json) if response_json else None}
+            return {"stale": False, "etag": etag, "last_modified": last_modified, "json": json.loads(response_json) if response_json else None}
+
+    def put(self, url: str, params: dict | None, status_code: int, response_json: dict | list | None,
+            etag: str | None, last_modified: str | None):
+        key = _cache_key(url, params)
+        with self._lock, self._conn() as con:
+            con.execute("""
+              INSERT OR REPLACE INTO cache(cache_key, url, params_fpr, status_code, response_json, etag, last_modified, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                key, url, _params_fingerprint(params), status_code,
+                json.dumps(response_json) if response_json is not None else None,
+                etag, last_modified, _now_ts()
+            ))
+
+
+CACHE = SQLiteCache(CACHE_DB_PATH, CACHE_TTL_SECONDS)
+
+class TokenSession:
+    def __init__(self, token: str):
+        self.token = token
+        self.session = requests.Session()
+        self.session.headers.update({**DEFAULT_HEADERS, "Authorization": f"token {token}"})
+        self.remaining = None
+        self.reset_epoch = 0
+        self.lock = threading.Lock()
+
+    def update_rate(self, resp: requests.Response):
+        try:
+            self.remaining = int(resp.headers.get("X-RateLimit-Remaining", "0") or "0")
+            self.reset_epoch = int(resp.headers.get("X-RateLimit-Reset", "0") or "0")
+        except Exception:
+            pass
+
+    def wait_if_needed(self):
+        if self.remaining is not None and self.remaining <= 0:
+            wait = max(1, self.reset_epoch - int(time.time())) + 2
+            time.sleep(min(wait, 120))
+
 
 class TokenRotator:
-    def __init__(self, tokens):
-        self.tokens = tokens
-        self.n = len(tokens)
-        self.lock = Lock()
+    def __init__(self, tokens: list[str]):
+        self.pool = [TokenSession(t) for t in tokens]
         self.idx = 0
-    def current(self):
+        self.lock = threading.Lock()
+
+    def pick(self) -> TokenSession:
         with self.lock:
-            return self.tokens[self.idx]
-    def next(self):
-        with self.lock:
-            self.idx = (self.idx + 1) % self.n
-            return self.tokens[self.idx]
-    def set_on_session(self, session):
-        session.headers["Authorization"] = f"token {self.current()}"
+            n = len(self.pool)
+            for _ in range(n):
+                s = self.pool[self.idx]
+                self.idx = (self.idx + 1) % n
+                if s.remaining is None or s.remaining > 0:
+                    return s
+            s = self.pool[0]
+            s.wait_if_needed()
+            return s
 
-TOKEN_ROTATOR = TokenRotator(TOKENS)
 
-BASE_HEADERS = {
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "oss-research/1.0"
-}
+ROTATOR = TokenRotator(TOKENS)
 
-_thread = local()
-
-def _get_session():
-    s = getattr(_thread, "session", None)
-    if s is None:
-        s = requests.Session()
-        s.headers.update(BASE_HEADERS)
-        TOKEN_ROTATOR.set_on_session(s)
-        _thread.session = s
-    return s
-
-def _rotate_token_on_session():
-    TOKEN_ROTATOR.next()
-    TOKEN_ROTATOR.set_on_session(_get_session())
-
-def _sleep_backoff(i):
+def _sleep_backoff(i: int):
     time.sleep(min(90, (2 ** i) + random.random()))
 
-def _safe_get_json(url, params=None, attempts=6):
+def safe_get_json(url: str, params: dict | None = None, attempts: int = 6):
+    cached = CACHE.get(url, params)
+    headers = {}
+    if cached:
+        if cached.get("etag"):
+            headers["If-None-Match"] = cached["etag"]
+        elif cached.get("last_modified"):
+            headers["If-Modified-Since"] = cached["last_modified"]
+
+        if cached.get("stale") is False and cached.get("json") is not None:
+            return cached["json"]
+
     for i in range(attempts):
+        sess = ROTATOR.pick()
         try:
-            r = _get_session().get(url, params=params, timeout=TIMEOUT)
+            with sess.lock:
+                sess.wait_if_needed()
+                r = sess.session.get(url, params=params, timeout=TIMEOUT, headers=headers or None)
+                sess.update_rate(r)
         except Exception:
             _sleep_backoff(i)
             continue
+
+        if r.status_code == 304 and cached:
+            return cached.get("json")
+
         if r.status_code == 403 and r.headers.get("X-RateLimit-Remaining") == "0":
-            _rotate_token_on_session()
-            reset = int(r.headers.get("X-RateLimit-Reset", "0") or 0)
-            wait = max(1, reset - int(time.time())) + 2
-            time.sleep(min(wait, 60))
+            wait = max(1, int(r.headers.get("X-RateLimit-Reset", "0") or 0) - int(time.time())) + 2
+            time.sleep(min(wait, 120))
             continue
-        if r.status_code == 429 or (r.status_code == 403 and "secondary rate limit" in r.text.lower()):
+
+        if r.status_code in (429, 403) and ("secondary rate limit" in (r.text or "").lower()):
             retry_after = int(r.headers.get("Retry-After", "0") or 0)
-            _rotate_token_on_session()
-            time.sleep(retry_after or min(30, (2 ** i) + random.random()))
+            time.sleep(retry_after or min(90, (2 ** i) + random.random()))
             continue
+
         if r.status_code in (500, 502, 503, 504):
             _sleep_backoff(i)
             continue
+
         if r.ok:
+            etag = r.headers.get("ETag") or None
+            last_mod = r.headers.get("Last-Modified") or None
             try:
-                return r.json()
+                payload = r.json()
             except ValueError:
-                return None
+                payload = None
+            CACHE.put(url, params, r.status_code, payload, etag, last_mod)
+            return payload
+
         _sleep_backoff(i)
+
     return None
 
-def get_top_repositories(limit=200):
-    repos = []
-    page = 1
-    per_page = 100
-    while len(repos) < limit:
-        url = f"{BASE_URL}/search/repositories"
-        params = {"q": "stars:>1", "sort": "stars", "order": "desc", "per_page": per_page, "page": page}
-        data = _safe_get_json(url, params=params)
-        if not data or "items" not in data or not data["items"]:
-            break
-        repos.extend(data["items"])
-        page += 1
-        time.sleep(0.1)
-    return repos[:limit]
-
-def get_closed_prs_count(owner, repo):
-    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls"
-    params = {"state": "closed", "per_page": 100, "page": 1}
-    for attempt in range(3):
-        try:
-            session = _get_session()
-            r = session.get(url, params=params, timeout=TIMEOUT)
-            if r.status_code == 403 and r.headers.get("X-RateLimit-Remaining") == "0":
-                _rotate_token_on_session()
-                reset = int(r.headers.get("X-RateLimit-Reset", "0") or 0)
-                wait = max(1, reset - int(time.time())) + 2
-                time.sleep(min(wait, 60))
-                continue
-            if not r.ok:
-                if attempt == 2:
-                    print(f"[ERROR] {owner}/{repo}: HTTP {r.status_code}")
-                    return 0
-                time.sleep(2 ** attempt)
-                continue
-            link_header = r.headers.get("Link", "")
-            if "rel=\"last\"" in link_header:
-                import re
-                match = re.search(r'[?&]page=(\d+)[^>]*>;\s*rel="last"', link_header)
-                if match:
-                    last_page = int(match.group(1))
-                    params_last = params.copy()
-                    params_last["page"] = last_page
-                    r_last = session.get(url, params=params_last, timeout=TIMEOUT)
-                    if r_last.ok:
-                        last_data = r_last.json()
-                        items_last_page = len(last_data) if isinstance(last_data, list) else 0
-                        total = (last_page - 1) * 100 + items_last_page
-                        print(f"[COUNT] {owner}/{repo} -> {total} PRs")
-                        return total
-            data = r.json()
-            if isinstance(data, list):
-                count = len(data)
-                print(f"[COUNT] {owner}/{repo} -> {count} PRs (página única)")
-                return count
-            return 0
-        except Exception as e:
-            if attempt == 2:
-                print(f"[ERROR] {owner}/{repo}: {e}")
-                return 0
-            time.sleep(2 ** attempt)
-    return 0
-
-def _parse_dt(iso_str):
-    return datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
-
-def get_reviews(owner, repo, pr_number):
-    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}/reviews"
-    data = _safe_get_json(url) or []
-    return [rv for rv in data if isinstance(rv, dict)]
-
-def get_issue_comments(owner, repo, pr_number):
-    url = f"{BASE_URL}/repos/{owner}/{repo}/issues/{pr_number}/comments"
-    data = _safe_get_json(url) or []
-    return [c for c in data if isinstance(c, dict)]
-
-def get_review_comments(owner, repo, pr_number):
-    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}/comments"
-    data = _safe_get_json(url) or []
-    return [c for c in data if isinstance(c, dict)]
-
-def get_pr_files(owner, repo, pr_number):
-    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}/files"
-    data = _safe_get_json(url) or []
-    return [f for f in data if isinstance(f, dict)]
-
-def get_pr_detail(owner, repo, pr_number):
-    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}"
-    return _safe_get_json(url) or {}
-
-def get_participants_count(owner, repo, pr_number):
-    users = set()
-    pr = get_pr_detail(owner, repo, pr_number)
-    if pr.get("user") and pr["user"].get("login"):
-        users.add(pr["user"]["login"])
-    for rv in get_reviews(owner, repo, pr_number):
-        u = (rv.get("user") or {}).get("login")
-        if u:
-            users.add(u)
-    for c in get_issue_comments(owner, repo, pr_number):
-        u = (c.get("user") or {}).get("login")
-        if u:
-            users.add(u)
-    for c in get_review_comments(owner, repo, pr_number):
-        u = (c.get("user") or {}).get("login")
-        if u:
-            users.add(u)
-    return len(users)
-
-def get_pull_requests(owner, repo, max_deep=MAX_DEEP_PRS_PER_REPO):
-    results = []
-    page = 1
-    per_page = 100
-    deep_analyzed = 0
-    print(f"[início] {owner}/{repo} - limite: {max_deep} PRs", flush=True)
-    while True:
-        if max_deep is not None and deep_analyzed >= max_deep:
-            print(f"[limite] {owner}/{repo} - atingiu {max_deep} PRs analisados", flush=True)
-            break
-        url = f"{BASE_URL}/repos/{owner}/{repo}/pulls"
-        params = {"state": "closed", "per_page": per_page, "page": page}
-        data = _safe_get_json(url, params=params)
-        if not data or not isinstance(data, list) or not data:
-            break
-        for pr in data:
-            merged_at = pr.get("merged_at")
-            closed_at = pr.get("closed_at")
-            created_at = pr.get("created_at")
-            if not created_at or not (merged_at or closed_at):
-                continue
-            end_raw = merged_at or closed_at
-            try:
-                duration_h = (_parse_dt(end_raw) - _parse_dt(created_at)).total_seconds() / 3600.0
-            except Exception:
-                continue
-            if duration_h < 1.0:
-                continue
-            if max_deep is not None and deep_analyzed >= max_deep:
-                print(f"[limite] {owner}/{repo} - parou em {deep_analyzed} PRs", flush=True)
-                return results
-            reviews = get_reviews(owner, repo, pr["number"])
-            if len(reviews) < 1:
-                continue
-            deep_analyzed += 1
-            if deep_analyzed % 100 == 0:
-                print(f"[progresso] {owner}/{repo}: {deep_analyzed}/{max_deep} PRs processados", flush=True)
-            comments_total = int(pr.get("comments", 0)) + int(pr.get("review_comments", 0))
-            participants_count = get_participants_count(owner, repo, pr["number"])
-            files = get_pr_files(owner, repo, pr["number"])
-            num_files = len(files)
-            additions = sum(int(f.get("additions", 0) or 0) for f in files)
-            deletions = sum(int(f.get("deletions", 0) or 0) for f in files)
-            description_length = len(pr.get("body") or "")
-            results.append({
-                "owner": owner,
-                "repo_name": repo,
-                "repo": f"{owner}/{repo}",
-                "pr_number": pr["number"],
-                "state": "merged" if merged_at else "closed",
-                "num_files": num_files,
-                "additions": additions,
-                "deletions": deletions,
-                "analysis_time_hours": duration_h,
-                "description_length": description_length,
-                "participants_count": participants_count,
-                "comments_count": comments_total,
-                "reviews_count": len(reviews),
-            })
-        page += 1
-        time.sleep(0.1)
-    print(f"[fim] {owner}/{repo}: {len(results)} PRs coletados", flush=True)
-    return results
-
-def iter_top_repositories_sorted():
-    page = 1
-    per_page = 100
+def iter_top_repositories_sorted(max_pages=10, per_page=100):
     seen = set()
-    while True:
+    for page in range(1, max_pages + 1):
         url = f"{BASE_URL}/search/repositories"
-        params = {"q": "stars:>1", "sort": "stars", "order": "desc", "per_page": per_page, "page": page}
-        data = _safe_get_json(url, params=params)
-        if not data or "items" not in data or not data["items"]:
+        params = {
+            "q": "stars:>1",
+            "sort": "stars",
+            "order": "desc",
+            "per_page": per_page,
+            "page": page,
+        }
+        data = safe_get_json(url, params=params)
+        items = (data or {}).get("items") or []
+        if not items:
             break
-        for r in data["items"]:
+        for r in items:
             key = f"{r['owner']['login']}/{r['name']}"
             if key in seen:
                 continue
             seen.add(key)
             yield r
-        page += 1
-        time.sleep(0.1)
+        time.sleep(0.05)  
 
-def _eligibility_task(repo_json):
-    owner = repo_json["owner"]["login"]
-    name = repo_json["name"]
-    key = f"{owner}/{name}"
-    total_closed = get_closed_prs_count(owner, name)
-    return key, owner, name, total_closed, repo_json.get("stargazers_count", 0), repo_json.get("html_url", "")
+def get_closed_prs_count(owner, repo):
+    q = f"repo:{owner}/{repo} is:pr is:closed"
+    url = f"{BASE_URL}/search/issues"
+    params = {"q": q, "per_page": 1}
+    data = safe_get_json(url, params=params)
+    if not data:
+        return 0
+    return int(data.get("total_count", 0))
 
-def _collect_prs_task(item):
-    owner, name, key = item["owner"], item["repo"], item["key"]
-    prs = get_pull_requests(owner, name, max_deep=MAX_DEEP_PRS_PER_REPO)
-    return key, prs
+def get_reviews(owner, repo, pr_number):
+    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}/reviews"
+    data = safe_get_json(url) or []
+    return [rv for rv in data if isinstance(rv, dict)]
+
+def get_issue_comments(owner, repo, pr_number):
+    url = f"{BASE_URL}/repos/{owner}/{repo}/issues/{pr_number}/comments"
+    data = safe_get_json(url) or []
+    return [c for c in data if isinstance(c, dict)]
+
+def get_review_comments(owner, repo, pr_number):
+    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}/comments"
+    data = safe_get_json(url) or []
+    return [c for c in data if isinstance(c, dict)]
+
+def get_pr_files(owner, repo, pr_number):
+    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}/files"
+    data = safe_get_json(url) or []
+    return [f for f in data if isinstance(f, dict)]
+
+def get_pr_detail(owner, repo, pr_number):
+    url = f"{BASE_URL}/repos/{owner}/{repo}/pulls/{pr_number}"
+    return safe_get_json(url) or {}
+
+def _parse_dt(iso_str):
+    return _iso_to_dt(iso_str)
+
+def fetch_single_pr(owner: str, repo: str, pr: dict):
+
+    merged_at = pr.get("merged_at")
+    closed_at = pr.get("closed_at")
+    created_at = pr.get("created_at")
+    if not created_at or not (merged_at or closed_at):
+        return None
+
+    end_raw = merged_at or closed_at
+    try:
+        duration_h = (_parse_dt(end_raw) - _parse_dt(created_at)).total_seconds() / 3600.0
+    except Exception:
+        return None
+    if duration_h < 1.0:
+        return None
+
+    reviews = get_reviews(owner, repo, pr["number"])
+    if len(reviews) < 1:
+        return None
+
+    detail = get_pr_detail(owner, repo, pr["number"])
+    issue_comments = get_issue_comments(owner, repo, pr["number"])
+    review_comments = get_review_comments(owner, repo, pr["number"])
+    files = get_pr_files(owner, repo, pr["number"])
+
+    users = set()
+    u = (detail.get("user") or {}).get("login")
+    if u:
+        users.add(u)
+    for rv in reviews:
+        u = (rv.get("user") or {}).get("login")
+        if u:
+            users.add(u)
+    for c in issue_comments:
+        u = (c.get("user") or {}).get("login")
+        if u:
+            users.add(u)
+    for c in review_comments:
+        u = (c.get("user") or {}).get("login")
+        if u:
+            users.add(u)
+
+    num_files = len(files)
+    additions = sum(int(f.get("additions", 0) or 0) for f in files)
+    deletions = sum(int(f.get("deletions", 0) or 0) for f in files)
+    description_length = len(detail.get("body") or pr.get("body") or "")
+
+    return {
+        "owner": owner,
+        "repo_name": repo,
+        "repo": f"{owner}/{repo}",
+        "pr_number": pr["number"],
+        "state": "merged" if merged_at else "closed",
+        "num_files": num_files,
+        "additions": additions,
+        "deletions": deletions,
+        "analysis_time_hours": duration_h,
+        "description_length": description_length,
+        "participants_count": len(users),
+        "comments_count": int(detail.get("comments", 0)) + int(detail.get("review_comments", 0)),
+        "reviews_count": len(reviews),
+    }
+
+def get_pull_requests(owner, repo, max_deep=MAX_DEEP_PRS_PER_REPO):
+
+    print(f"[início] {owner}/{repo} - limite: {max_deep} PRs", flush=True)
+    results = []
+    page = 1
+    per_page = 100
+    deep_analyzed = 0
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        futures = []
+        while True:
+            if max_deep is not None and deep_analyzed >= max_deep:
+                print(f"[limite] {owner}/{repo} - atingiu {max_deep} PRs analisados", flush=True)
+                break
+
+            url = f"{BASE_URL}/repos/{owner}/{repo}/pulls"
+            params = {"state": "closed", "per_page": per_page, "page": page}
+            data = safe_get_json(url, params=params)
+            if not data or not isinstance(data, list) or not data:
+                break
+
+            for pr in data:
+                if max_deep is not None and deep_analyzed >= max_deep:
+                    break
+                futures.append(ex.submit(fetch_single_pr, owner, repo, pr))
+                deep_analyzed += 1
+                if deep_analyzed % 200 == 0:
+                    print(f"[progresso] {owner}/{repo}: {deep_analyzed}/{max_deep} PRs agendados", flush=True)
+
+            page += 1
+            time.sleep(0.02)
+
+        for fut in as_completed(futures):
+            item = fut.result()
+            if item:
+                results.append(item)
+
+    print(f"[fim] {owner}/{repo}: {len(results)} PRs coletados (válidos)", flush=True)
+    return results
+
 
 if __name__ == "__main__":
-    start_ts = datetime.now()
-    print(f"{start_ts.isoformat()} | cwd={os.getcwd()}", flush=True)
+    start_ts = datetime.now(timezone.utc)
+    print(f"[start] {start_ts.isoformat()} | cwd={os.getcwd()} | tokens={len(TOKENS)} | max_workers={MAX_WORKERS}", flush=True)
+
     TARGET = 200
-    ELIGIBILITY_WORKERS = int(os.getenv("ELIGIBILITY_WORKERS", "2"))
-    PR_WORKERS = int(os.getenv("PR_WORKERS", "2"))
     eligible = []
     repo_meta = {}
-    print("Buscando repositórios", flush=True)
-    with ThreadPoolExecutor(max_workers=ELIGIBILITY_WORKERS) as pool:
-        futures = []
-        INFLIGHT_MAX = ELIGIBILITY_WORKERS * 4
-        for r in iter_top_repositories_sorted():
+
+    print("Buscando repositórios por estrelas até completar 200 elegíveis...", flush=True)
+
+    candidates = list(iter_top_repositories_sorted(max_pages=10))
+    print(f"[eligibility] Candidatos recebidos da Search API: {len(candidates)}", flush=True)
+
+    def _eligibility_item(r):
+        owner = r["owner"]["login"]
+        name = r["name"]
+        key = f"{owner}/{name}"
+        stars = r.get("stargazers_count", 0)
+        html_url = r.get("html_url", "")
+        total_closed = get_closed_prs_count(owner, name)
+        return key, owner, name, stars, html_url, total_closed
+
+    with ThreadPoolExecutor(max_workers=min(32, MAX_WORKERS * max(1, len(TOKENS)))) as ex:
+        futs = [ex.submit(_eligibility_item, r) for r in candidates]
+        for fut in as_completed(futs):
+            key, owner, name, stars, html_url, total_closed = fut.result()
+            print(f"[eligibility] {key} -> closed PRs={total_closed}", flush=True)
+            if total_closed >= 100 and len(eligible) < TARGET:
+                repo_meta[key] = {"stars": stars, "html_url": html_url}
+                eligible.append({
+                    "owner": owner,
+                    "repo": name,
+                    "key": key,
+                    "total_closed_prs": total_closed
+                })
             if len(eligible) >= TARGET:
                 break
-            futures.append(pool.submit(_eligibility_task, r))
-            if len(futures) >= INFLIGHT_MAX:
-                done = []
-                for f in as_completed(futures):
-                    done.append(f)
-                    if len(done) >= ELIGIBILITY_WORKERS:
-                        break
-                for f in done:
-                    try:
-                        key, owner, name, total_closed, stars, html_url = f.result()
-                        print(f"[eligibility] {key} -> closed PRs={total_closed}", flush=True)
-                        if total_closed >= 100 and len(eligible) < TARGET:
-                            repo_meta[key] = {"stars": stars, "html_url": html_url}
-                            eligible.append({"owner": owner, "repo": name, "key": key, "total_closed_prs": total_closed})
-                    except Exception as e:
-                        print(f"[eligibility-error] {e}", flush=True)
-                futures = [f for f in futures if not f.done()]
-        for f in as_completed(futures):
-            if len(eligible) >= TARGET:
-                break
-            try:
-                key, owner, name, total_closed, stars, html_url = f.result()
-                print(f"[eligibility] {key} -> closed PRs={total_closed}", flush=True)
-                if total_closed >= 100 and len(eligible) < TARGET:
-                    repo_meta[key] = {"stars": stars, "html_url": html_url}
-                    eligible.append({"owner": owner, "repo": name, "key": key, "total_closed_prs": total_closed})
-            except Exception as e:
-                print(f"[eligibility-error] {e}", flush=True)
+
     print(f"[main] Elegíveis reunidos: {len(eligible)} (alvo={TARGET})", flush=True)
     if len(eligible) < TARGET:
-        print("[main] AVISO: não foi possível atingir 200 dentro do limite da Search API.", flush=True)
+        print("[main] AVISO: não foi possível atingir 200 dentro do limite da Search API. Aumente max_pages.", flush=True)
+
     dataset = []
-    if eligible:
-        print(f"[collect] Iniciando coleta de PRs em {len(eligible)} repositórios (workers={PR_WORKERS})...", flush=True)
-        with ThreadPoolExecutor(max_workers=PR_WORKERS) as pool:
-            future_map = {pool.submit(_collect_prs_task, item): item for item in eligible}
-            processed = 0
-            for fut in as_completed(future_map):
-                item = future_map[fut]
-                key = item["key"]
-                try:
-                    k, prs = fut.result()
-                    meta = repo_meta.get(k, {"stars": 0, "html_url": ""})
-                    for pr in prs:
-                        pr.update({"stars": meta["stars"], "html_url": meta["html_url"], "total_closed_prs": item["total_closed_prs"]})
-                        dataset.append(pr)
-                except Exception as e:
-                    print(f"[collect-error] {key}: {e}", flush=True)
-                processed += 1
-                if processed % 10 == 0 or processed == len(eligible):
-                    print(f"[collect] Progresso: {processed}/{len(eligible)} repositórios", flush=True)
+
+    def _collect_repo(item):
+        owner, name, key = item["owner"], item["repo"], item["key"]
+        prs = get_pull_requests(owner, name, max_deep=MAX_DEEP_PRS_PER_REPO)
+        meta = repo_meta.get(key, {"stars": 0, "html_url": ""})
+        for pr in prs:
+            pr.update({
+                "stars": meta["stars"],
+                "html_url": meta["html_url"],
+                "total_closed_prs": item["total_closed_prs"]
+            })
+        return prs
+
+    with ThreadPoolExecutor(max_workers=min(12, len(eligible), MAX_WORKERS)) as ex:
+        futs = [ex.submit(_collect_repo, item) for item in eligible]
+        for fut in as_completed(futs):
+            prs = fut.result()
+            dataset.extend(prs)
+
     columns = [
         "owner", "repo_name", "repo", "stars", "html_url", "total_closed_prs",
-        "pr_number", "state", "num_files", "additions", "deletions",
-        "analysis_time_hours", "description_length",
-        "participants_count", "comments_count", "reviews_count",
+        "pr_number", "state",
+        "num_files", "additions", "deletions",
+        "analysis_time_hours",
+        "description_length",
+        "participants_count", "comments_count",
+        "reviews_count",
     ]
     df = pd.DataFrame(dataset, columns=columns)
     df.to_csv(OUTPUT_FILENAME, index=False)
     print(f"[output] Arquivo gravado: {os.path.abspath(OUTPUT_FILENAME)} | linhas={len(df)} | vazio={df.empty}", flush=True)
-    print(f"[end] {datetime.now().isoformat()} | elegíveis={len(eligible)} | PRs={len(df)}", flush=True)
+    print(f"[end] {datetime.now(timezone.utc).isoformat()} | elegíveis={len(eligible)} | PRs={len(df)}", flush=True)
