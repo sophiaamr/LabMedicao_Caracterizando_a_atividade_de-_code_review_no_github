@@ -72,7 +72,7 @@ Na análise dos dados, a complexidade também foi alta. Enfrentei dificuldades p
 
 ## 6. Resultados & Discussões
 
-#### RQ1 - 
+#### RQ1 - Qual a relação entre o tamanho dos PRs e o feedback final das revisões?
 
 <p align="center">
   <img src="GraficoRQ1.jpeg" width="480" alt="Descrição">
@@ -83,7 +83,7 @@ O tamanho por si só é um preditor fraco de feedback; alguns PRs grandes recebe
 
 A hipotese foi parcialmente refutada, pois os dados de indicam correlação positiva fraca entre tamanho do PR e feedback total: PRs maiores têm maior chance de gerar discussões mais extensas, porém a maioria (inclusive muitos PRs grandes) recebe pouco feedback.
 
-#### RQ2 - 
+#### RQ2 - Qual a relação entre o tempo de análise dos PRs e o feedback final das revisões?
 
 <p align="center">
   <img src="rq02.PNG" width="500" alt="Descrição">
@@ -97,7 +97,7 @@ Neste gráfico, vemos que o engajamento com PRs segue uma curva em U invertido. 
 
 Disussão: PRs que são resolvidos muito rapidamente (em menos de 1 dia) tendem a ser mudanças simples que genuinamente não requerem discussão extensiva. No entanto, é importante que as equipes verifiquem se não estão negligenciando revisões necessárias em favor da velocidade. Por outro lado, PRs que ultrapassam 1 mês de análise entram em uma zona crítica onde o feedback praticamente estagna, caindo para níveis inferiores aos dos PRs triviais
 
-#### RQ3 - 
+#### RQ3 - Qual a relação entre a descrição dos PRs e o feedback final das revisões?
 
 <p align="center">
   <img src="/assets/rq3.png" width="480" alt="Descrição">
@@ -107,7 +107,7 @@ Disussão: PRs que são resolvidos muito rapidamente (em menos de 1 dia) tendem 
 
   Discussão: A hipótese não foi confirmada. Embora descrições mais longas pareçam, visualmente, associar-se a menos comentários, o resultado estatístico indica uma correlação fraca e positiva (ρ = 0,167). Isso ocorre porque a maior parte dos PRs possui descrições curtas, nas quais há grande variação no número de comentários, influenciando o resultado global. Assim, conclui-se que o tamanho da descrição tem pouca influência prática no volume de feedbacks durante a revisão.
 
-#### RQ4 - 
+#### RQ4 - Qual a relação entre as interações nos PRs e o feedback final das revisões?
 
 <p align="center">
   <img src="/assets/rq4.png" width="480" alt="Descrição">
@@ -117,7 +117,7 @@ Os dados do gráfico mostram que a maioria dos Pull Requests possui baixa quanti
 
 Discussão: A hipótese foi confirmada. Observou-se que PRs com mais interações entre os colaboradores apresentam maior volume de comentários, indicando revisões mais participativas e detalhadas. Isso sugere que quanto maior o envolvimento coletivo no processo de revisão, mais extensas tendem a ser as discussões e os feedbacks gerados até a aprovação final.
 
-#### RQ5 - 
+#### RQ5 - Qual a relação entre o tamanho dos PRs e o número de revisões realizadas?
 
 <p align="center">
   <img src="rq05.PNG" width="500" alt="Descrição">
@@ -126,7 +126,7 @@ Discussão: A hipótese foi confirmada. Observou-se que PRs com mais interaçõe
 O gráfico mostra que o conjunto é fortemente concentrado em PRs “Muito Pequenos” (≈45%), seguidos de Pequenos (≈24%); Médios e Grandes somam ~16% cada. Isso significa que, em termos de volume bruto de revisões, os menores inevitavelmente dominam o total simplesmente porque são muito mais numerosos.
 A hipotese é refutada, pois há apenas risco ligeiramente maior de discussões longas em PRs grandes, não um crescimento consistente de revisões conforme o tamanho aumenta.
 
-#### RQ6 - 
+#### RQ6 - Qual a relação entre o tempo de análise dos PRs e o número de revisões realizadas?
 
 <p align="center">
   <img src="GraficoRQ6.jpeg" width="600" alt="Descrição">
@@ -135,7 +135,7 @@ A hipotese é refutada, pois há apenas risco ligeiramente maior de discussões 
 Mais tempo não implica mais revisões. O volume de revisões tende a ser maior quando o PR é analisado entre 1 dia e 1 mês (sobretudo 1–7 dias), enquanto PRs muito rápidos e muito lentos recebem menos ciclos de revisão.
 Ou seja, hipotese foi refutada
 
-#### RQ7 - 
+#### RQ7 - Qual a relação entre a descrição dos PRs e o número de revisões realizadas?
 
 <p align="center">
   <img src="/assets/rq7.png" width="480" alt="Descrição">
@@ -145,7 +145,7 @@ Os dados do gráfico mostram que a maioria dos Pull Requests possui descrições
 
 Discussão: A hipótese não foi confirmada. Esperava-se que descrições mais longas resultassem em menos revisões, por facilitarem o entendimento das mudanças propostas, mas os dados mostram que o tamanho da descrição tem pouca influência no número de revisões realizadas. A correlação fraca indica que fatores como a complexidade do código ou o tipo de alteração parecem ter maior impacto na quantidade de feedbacks durante o processo de revisão.
 
-#### RQ8 - 
+#### RQ8 - Qual a relação entre as interações nos PRs e o número de revisões realizadas?
 
 <p align="center">
   <img src="/assets/rq8.png" width="480" alt="Descrição">
